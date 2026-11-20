@@ -13,7 +13,9 @@ permissions:
   contents: read
 jobs:
   pre-merge:
-    runs-on: ubuntu-24.04
+    # 26.04: its QEMU (10.2) emulates x2APIC and the TSC-deadline timer,
+    # which Silica requires; 24.04's QEMU 8.2 does neither under TCG.
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
