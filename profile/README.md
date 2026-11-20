@@ -8,8 +8,7 @@ The project is preparing its first milestone: a reproducible build and test harn
 
 ## Repositories
 
-- [spec](https://github.com/project-silica/spec) — architecture, milestones, and test strategy
+- [workshop](https://github.com/project-silica/workshop) — the project root: specification (architecture, milestones, test strategy), workspace checkout and build instructions
 - [idl](https://github.com/project-silica/idl) — interface definitions and language bindings
 - [kernel](https://github.com/project-silica/kernel) — microkernel and boot code
 - [os](https://github.com/project-silica/os) — system images, integration, and verification tools
-- [workshop](https://github.com/project-silica/workshop) — workspace checkout and build instructions
