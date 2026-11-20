@@ -1,7 +1,7 @@
 # Prepare a Silica workspace on a hosted runner exactly as bootstrap.sh does
 # locally: the workshop root, every repository from os/manifest.toml beside it
 # (tools/sync.sh), the repository under test replaced by this checkout, the
-# pinned toolchain, QEMU and OVMF, and the bubblewrap sandbox the tools use.
+# pinned toolchain, QEMU and OVMF.
 name: silica-setup
 description: Workspace, toolchain, emulator and compiler cache for tools/*.sh
 inputs:
@@ -27,9 +27,7 @@ runs:
         set -euo pipefail
         mv _workshop "${{ steps.ws.outputs.ws }}"
         sudo apt-get update -qq
-        sudo apt-get install -y -qq bubblewrap jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat >/dev/null
-        # Hosted Ubuntu restricts unprivileged user namespaces; the sandbox needs them.
-        sudo sysctl -q kernel.apparmor_restrict_unprivileged_userns=0 || true
+        sudo apt-get install -y -qq jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat >/dev/null
     - shell: bash
       working-directory: ${{ steps.ws.outputs.ws }}
       run: |
