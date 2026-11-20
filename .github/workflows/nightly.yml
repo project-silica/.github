@@ -1,0 +1,27 @@
+# Nightly lane (spec/CI_RELEASE.md section 2), on os: fuzzers, proofs, soak,
+# fault injection, benchmarks, reproducible-build check. Never blocks; a
+# regression becomes an issue with the logs attached.
+name: nightly
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  deep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup
+        uses: project-silica/.github/actions/setup@main
+        with:
+          repo: os
+      - working-directory: ${{ steps.setup.outputs.ws }}
+        run: |
+          set -o pipefail
+          ./tools/test.sh --deep 2>&1 | tee "$RUNNER_TEMP/test.out" || { grep "^ERROR" "$RUNNER_TEMP/test.out" | head -30 | sed "s/^/::error::/"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-nightly
+          path: ${{ steps.setup.outputs.ws }}/target/logs

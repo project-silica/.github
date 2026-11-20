@@ -1,0 +1,54 @@
+# Pre-merge lane (spec/CI_RELEASE.md section 2): 5 minutes, blocks merge.
+# Format, lint, build, host tests, size and bloat gates, dependency direction,
+# boot smoke test, all through the same tools/ scripts agents run locally.
+# A documentation-only change runs the format check and nothing else.
+name: pre-merge
+on:
+  workflow_call:
+    inputs:
+      repo:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  pre-merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: paths
+        shell: bash
+        run: |
+          base=${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          docs=false
+          if [ -n "$base" ] && git cat-file -e "$base" 2>/dev/null; then
+            changed=$(git diff --name-only "$base" HEAD)
+            [ -n "$changed" ] && ! grep -qvE '\.md$|^LICENSE' <<<"$changed" && docs=true
+          fi
+          echo "docs=$docs" >>"$GITHUB_OUTPUT"
+      - id: setup
+        uses: project-silica/.github/actions/setup@main
+        with:
+          repo: ${{ inputs.repo }}
+      - name: fast tier
+        if: steps.paths.outputs.docs != 'true'
+        working-directory: ${{ steps.setup.outputs.ws }}
+        run: |
+          set -o pipefail
+          ./tools/test.sh --fast --repo '${{ inputs.repo }}' 2>&1 | tee "$RUNNER_TEMP/test.out" || { grep "^ERROR" "$RUNNER_TEMP/test.out" | head -30 | sed "s/^/::error::/"; exit 1; }
+      - name: dependency direction
+        if: steps.paths.outputs.docs != 'true'
+        working-directory: ${{ steps.setup.outputs.ws }}
+        run: ./tools/check-deps.sh
+      - name: format only
+        if: steps.paths.outputs.docs == 'true'
+        working-directory: ${{ steps.setup.outputs.ws }}/${{ inputs.repo }}
+        run: if [ -f Cargo.toml ]; then cargo fmt --all --check; fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logs-pre-merge-${{ inputs.repo }}
+          path: ${{ steps.setup.outputs.ws }}/target/logs

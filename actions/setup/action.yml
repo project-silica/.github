@@ -1,0 +1,49 @@
+# Prepare a Silica workspace on a hosted runner exactly as bootstrap.sh does
+# locally: the workshop root, every repository from os/manifest.toml beside it
+# (tools/sync.sh), the repository under test replaced by this checkout, the
+# pinned toolchain, QEMU and OVMF, and the bubblewrap sandbox the tools use.
+name: silica-setup
+description: Workspace, toolchain, emulator and compiler cache for tools/*.sh
+inputs:
+  repo:
+    description: Name of the repository under test (spec, idl, kernel, os, ...)
+    required: true
+outputs:
+  ws:
+    description: Absolute path of the workspace root
+    value: ${{ steps.ws.outputs.ws }}
+runs:
+  using: composite
+  steps:
+    - id: ws
+      shell: bash
+      run: echo "ws=$RUNNER_TEMP/workshop" >>"$GITHUB_OUTPUT"
+    - uses: actions/checkout@v4
+      with:
+        repository: project-silica/workshop
+        path: _workshop
+    - shell: bash
+      run: |
+        set -euo pipefail
+        mv _workshop "${{ steps.ws.outputs.ws }}"
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq bubblewrap jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat >/dev/null
+        # Hosted Ubuntu restricts unprivileged user namespaces; the sandbox needs them.
+        sudo sysctl -q kernel.apparmor_restrict_unprivileged_userns=0 || true
+    - shell: bash
+      working-directory: ${{ steps.ws.outputs.ws }}
+      run: |
+        set -euo pipefail
+        git clone --quiet https://github.com/project-silica/os os
+        ./os/tools/sync.sh
+        repo='${{ inputs.repo }}'
+        rm -rf "$repo"
+        cp -a "$GITHUB_WORKSPACE" "$repo"
+        tc=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' kernel/rust-toolchain.toml)
+        rustup toolchain install "$tc" --profile minimal --component rust-src,clippy,rustfmt,miri,llvm-tools
+        ./tools/init.sh
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.ws.outputs.ws }}/target/cache
+        key: silica-${{ inputs.repo }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain.toml') }}
+        restore-keys: silica-${{ inputs.repo }}-${{ runner.os }}-
