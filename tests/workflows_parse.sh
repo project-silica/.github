@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test for feature A12.03: every file under .github/workflows/ and actions/
+# Test for the hosted CI definitions (component A12): every file under .github/workflows/ and actions/
 # parses as YAML (python3 yaml.safe_load) to a mapping. Also proves the checker
 # fails, naming the file, on a planted unparsable copy (made and cleaned up by
 # Python's tempfile). One "ERROR:" line per failure.

@@ -1,6 +1,6 @@
-# Pre-merge lane (spec/CI_RELEASE.md section 2): 5 minutes, blocks merge.
+# Pre-merge check: 5 minutes, blocks merge.
 # Format, lint, build, host tests, size and bloat gates, dependency direction,
-# boot smoke test, all through the same tools/ scripts agents run locally.
+# boot smoke test, all through the same tools/ scripts used locally.
 # A documentation-only change runs the format check and nothing else.
 name: pre-merge
 on:

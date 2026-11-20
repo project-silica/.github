@@ -1,6 +1,5 @@
-# Nightly lane (spec/CI_RELEASE.md section 2), on os: fuzzers, proofs, soak,
-# fault injection, benchmarks, reproducible-build check. Never blocks; a
-# regression becomes an issue with the logs attached.
+# Nightly run, on os: tools/test.sh --deep (the full suites plus fuzzing).
+# Never blocks a push; the logs are uploaded as an artifact.
 name: nightly
 on:
   workflow_call:
