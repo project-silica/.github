@@ -20,6 +20,17 @@ jobs:
       - name: Install cargo-fuzz for the deep tier
         working-directory: ${{ runner.temp }}
         run: cargo +stable install --locked --version 0.13.2 cargo-fuzz
+      - name: Select ARM firmware for the emulated max CPU
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Resolute's 2025.11 AAVMF faults when it enables translation,
+          # before it can start the loader (nightly 45176778475).
+          pkg=qemu-efi-aarch64_2026.05-2ubuntu3_all.deb
+          curl --fail --location --retry 3 -o "$pkg" "https://archive.ubuntu.com/ubuntu/pool/main/e/edk2/$pkg"
+          echo "698c5b3ace315a6df97f8e3300e98f2f8692395f0051c373c2b863c8c83fb701  $pkg" | sha256sum --check
+          dpkg-deb --extract "$pkg" arm-firmware
+          ln -s /usr/share/OVMF arm-firmware/usr/share/OVMF
+          echo "SILICA_FW_ROOT=$PWD/arm-firmware" >> "$GITHUB_ENV"
       - working-directory: ${{ steps.setup.outputs.ws }}
         run: |
           set -o pipefail
