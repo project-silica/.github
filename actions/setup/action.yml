@@ -33,6 +33,9 @@ runs:
         fi
     - if: inputs.repo == 'kernel' || github.event_name == 'schedule'
       shell: bash
+      # The project checkout uses its offline vendor directory. The host
+      # verifier is installed from the registry before building the project.
+      working-directory: ${{ runner.temp }}
       run: |
         cargo +stable install --locked --version 0.68.0 kani-verifier
         cargo kani setup
