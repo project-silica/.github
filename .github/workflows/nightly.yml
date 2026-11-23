@@ -17,6 +17,9 @@ jobs:
         uses: project-silica/.github/actions/setup@main
         with:
           repo: os
+      - name: Install cargo-fuzz for the deep tier
+        working-directory: ${{ runner.temp }}
+        run: cargo +stable install --locked --version 0.13.2 cargo-fuzz
       - working-directory: ${{ steps.setup.outputs.ws }}
         run: |
           set -o pipefail
@@ -25,4 +28,8 @@ jobs:
         if: always()
         with:
           name: logs-nightly
-          path: ${{ steps.setup.outputs.ws }}/target/logs
+          path: |
+            ${{ steps.setup.outputs.ws }}/target/logs
+            ${{ steps.setup.outputs.ws }}/target/fuzz/*/*/build.log
+            ${{ steps.setup.outputs.ws }}/target/fuzz/*/*/run.log
+            ${{ steps.setup.outputs.ws }}/target/runs/bench.*/*.serial
