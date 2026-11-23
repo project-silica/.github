@@ -32,11 +32,14 @@ runs:
       working-directory: ${{ steps.ws.outputs.ws }}
       run: |
         set -euo pipefail
-        git clone --quiet https://github.com/project-silica/os os
-        ./os/tools/sync.sh
         repo='${{ inputs.repo }}'
-        rm -rf "$repo"
-        cp -a "$GITHUB_WORKSPACE" "$repo"
+        if [ "$repo" = os ]; then
+          cp -a "$GITHUB_WORKSPACE" os
+        else
+          git clone --quiet https://github.com/project-silica/os os
+          cp -a "$GITHUB_WORKSPACE" "$repo"
+        fi
+        ./os/tools/sync.sh
         tc=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' kernel/rust-toolchain.toml)
         rustup toolchain install "$tc" --profile minimal --component rust-src,clippy,rustfmt,miri,llvm-tools
         ./tools/init.sh
