@@ -20,6 +20,16 @@ jobs:
       - name: Install cargo-fuzz for the deep tier
         working-directory: ${{ runner.temp }}
         run: cargo +stable install --locked --version 0.13.2 cargo-fuzz
+      - name: Install the instruction counter's QEMU build headers
+        working-directory: ${{ runner.temp }}
+        run: |
+          sudo apt-get install -y -qq libglib2.0-dev pkg-config
+          if [ ! -f /usr/include/qemu-plugin.h ]; then
+            qemu-system-x86_64 --version | grep -E '^QEMU emulator version 10\.2\.'
+            curl --fail --location --retry 3 -o qemu-plugin.h https://raw.githubusercontent.com/qemu/qemu/v10.2.1/include/qemu/qemu-plugin.h
+            echo "aebc639d01685893a9d71b9ef3afa7ea67e0be6a8959781c4057bd4974d05d4d  qemu-plugin.h" | sha256sum --check
+            sudo install -m 0644 qemu-plugin.h /usr/include/qemu-plugin.h
+          fi
       - name: Select ARM firmware for the emulated max CPU
         working-directory: ${{ runner.temp }}
         run: |
