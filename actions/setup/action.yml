@@ -27,7 +27,15 @@ runs:
         set -euo pipefail
         mv _workshop "${{ steps.ws.outputs.ws }}"
         sudo apt-get update -qq
-        sudo apt-get install -y -qq jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat >/dev/null
+        sudo apt-get install -y -qq acl jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat >/dev/null
+        if [ -c /dev/kvm ] && [ ! -w /dev/kvm ]; then
+          sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+        fi
+    - if: inputs.repo == 'kernel' || github.event_name == 'schedule'
+      shell: bash
+      run: |
+        cargo +stable install --locked --version 0.68.0 kani-verifier
+        cargo kani setup
     - shell: bash
       working-directory: ${{ steps.ws.outputs.ws }}
       run: |
