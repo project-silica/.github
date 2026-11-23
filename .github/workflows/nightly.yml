@@ -54,3 +54,5 @@ jobs:
             ${{ steps.setup.outputs.ws }}/target/fuzz/*/*/build.log
             ${{ steps.setup.outputs.ws }}/target/fuzz/*/*/run.log
             ${{ steps.setup.outputs.ws }}/target/runs/bench.*/*.serial
+            ${{ steps.setup.outputs.ws }}/target/runs/test.*/units.tsv
+            ${{ steps.setup.outputs.ws }}/target/runs/test.*/named/fast_budget/fastbudget.*/run.log
