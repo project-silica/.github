@@ -8,6 +8,9 @@ inputs:
   repo:
     description: Name of the repository under test (spec, idl, kernel, os, ...)
     required: true
+  deep:
+    description: Install the host verifier for the deep tier
+    default: 'false'
 outputs:
   ws:
     description: Absolute path of the workspace root
@@ -49,7 +52,7 @@ runs:
         if [ -c /dev/kvm ] && [ ! -w /dev/kvm ]; then
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
         fi
-    - if: inputs.repo == 'kernel' || github.event_name == 'schedule'
+    - if: inputs.repo == 'kernel' || inputs.deep == 'true' || github.event_name == 'schedule'
       shell: bash
       # The project checkout uses its offline vendor directory. The host
       # verifier is installed from the registry before building the project.

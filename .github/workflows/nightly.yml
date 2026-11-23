@@ -17,6 +17,7 @@ jobs:
         uses: project-silica/.github/actions/setup@main
         with:
           repo: os
+          deep: 'true'
       - name: Install cargo-fuzz for the deep tier
         working-directory: ${{ runner.temp }}
         run: cargo +stable install --locked --version 0.13.2 cargo-fuzz
