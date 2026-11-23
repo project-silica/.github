@@ -23,9 +23,8 @@ runs:
         repository: project-silica/workshop
         path: _workshop
     # The emulator and its firmware, from packages kept between runs: on
-    # 2026-11-23 downloading them took 3 min 45 s of a run's 5 (36 s in
-    # the run before), and the check was cancelled. The package index is
-    # fetched only when the install cannot do without it.
+    # 2026-11-23 this step took 3 min 45 s of a run's 5 (36 s in the run
+    # before), and the check was cancelled.
     - uses: actions/cache@v4
       with:
         path: ${{ runner.temp }}/apt-archives
@@ -37,14 +36,16 @@ runs:
         t0=$SECONDS
         a="$RUNNER_TEMP/apt-archives"
         mkdir -p "$a/partial"
-        pkgs=(acl jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat)
-        install() { sudo apt-get install -y -qq -o "Dir::Cache::Archives=$a" "${pkgs[@]}" >/dev/null; }
-        if ! install 2>/dev/null; then
-          sudo apt-get update -qq
-          install
-        fi
+        net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+        # The index every time (skipping it, 2026-11-23, made a stale one
+        # fetch from mirrors for 205 s), the packages from the cache where
+        # they are kept: each phase says how long it took.
+        sudo apt-get update -qq "${net[@]}"
+        echo "setup: package index in $((SECONDS - t0)) s"
+        t1=$SECONDS
+        sudo apt-get install -y -qq "${net[@]}" -o "Dir::Cache::Archives=$a" acl jq qemu-system-x86 qemu-system-arm ovmf qemu-efi-aarch64 mtools socat >/dev/null
         sudo chown -R "$(id -un)" "$a"
-        echo "setup: packages in $((SECONDS - t0)) s ($(ls "$a"/*.deb 2>/dev/null | wc -l) kept)"
+        echo "setup: packages in $((SECONDS - t1)) s ($(ls "$a"/*.deb 2>/dev/null | wc -l) kept)"
         if [ -c /dev/kvm ] && [ ! -w /dev/kvm ]; then
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
         fi
