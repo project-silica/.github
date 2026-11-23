@@ -44,12 +44,31 @@ runs:
       run: |
         set -euo pipefail
         repo='${{ inputs.repo }}'
+        # A change that spans repositories is pushed as one branch name in
+        # each; its checks take the other repositories from that branch
+        # where it exists, and from os's pins elsewhere (sync.sh leaves a
+        # clone already there on its branch). Without this, a protocol
+        # change and its first user could only pass once the other had
+        # merged.
+        branch='${{ github.head_ref || github.ref_name }}'
+        same() { [ -n "$branch" ] && [ "$branch" != main ] && git ls-remote --exit-code --heads "https://github.com/project-silica/$1" "$branch" >/dev/null 2>&1; }
+        take() {
+          if same "$1"; then
+            git clone --quiet --branch "$branch" "https://github.com/project-silica/$1" "$1"
+            echo "setup: $1 from its branch $branch"
+          elif [ "$1" = os ]; then
+            git clone --quiet https://github.com/project-silica/os os
+          fi
+        }
         if [ "$repo" = os ]; then
           cp -a "$GITHUB_WORKSPACE" os
         else
-          git clone --quiet https://github.com/project-silica/os os
+          take os
           cp -a "$GITHUB_WORKSPACE" "$repo"
         fi
+        for d in idl kernel system; do
+          [ "$d" = "$repo" ] || take "$d"
+        done
         ./os/tools/sync.sh
         tc=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' kernel/rust-toolchain.toml)
         rustup toolchain install "$tc" --profile minimal --component rust-src,clippy,rustfmt,miri,llvm-tools
