@@ -1,0 +1,6 @@
+# actionlint's own list of GitHub-hosted runner labels predates ubuntu-26.04,
+# which the workflows run on (its QEMU emulates x2APIC and the TSC-deadline
+# timer under TCG; see pre-merge.yml).
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

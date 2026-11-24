@@ -1,68 +1,51 @@
 #!/usr/bin/env bash
-# Test for the hosted CI definitions (component A12): every file under .github/workflows/ and actions/
-# parses as YAML (python3 yaml.safe_load) to a mapping. Also proves the checker
-# fails, naming the file, on a planted unparsable copy (made and cleaned up by
-# Python's tempfile). One "ERROR:" line per failure.
+# Test for the hosted CI definitions (component A12), with actionlint: every
+# workflow under .github/workflows/ is well formed (its YAML, its keys, its
+# expressions, the jobs it needs, the shell of its steps where shellcheck is
+# installed), and every action under actions/ is checked against the steps
+# that use it: in a scratch copy, the workflows' own references to
+# project-silica/.github/actions/<name>@main point at ./actions/<name>, so a
+# broken action.yml, or an input its callers give that it does not take, is
+# found here before every repository's CI runs it from main. An action no
+# workflow uses is an error too (nothing would check it). The checker must
+# also reject, by name, a planted unparsable workflow and a planted broken
+# action. One "ERROR:" line per failure.
 set -uo pipefail
 ROOT=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd -P)
-python3 -I - "$ROOT" <<'PY'
-import os, sys, shutil, tempfile
-try:
-    import yaml
-except ImportError:
-    print("ERROR: workflows-parse: python3 yaml module not available")
-    sys.exit(1)
+fails=0
+bad() { echo "ERROR: workflows-parse: $1"; fails=$((fails + 1)); }
+command -v actionlint >/dev/null || { bad "actionlint is not installed (https://github.com/rhysd/actionlint)"; exit 1; }
+BASE=${SILICA_RUN:-${TMPDIR:-/tmp}}; mkdir -p "$BASE"
+TMP=$(mktemp -d "$BASE/wfparse.XXXX") || { bad "no scratch directory"; exit 1; }
+trap 'rm -rf "$TMP"' EXIT
 
-def check(root):
-    """Return (list of error lines, number of files seen)."""
-    files = []
-    for sub in (".github/workflows", "actions"):
-        for d, _, names in os.walk(os.path.join(root, sub)):
-            for n in names:
-                if n.endswith((".yml", ".yaml")):
-                    files.append(os.path.join(d, n))
-    files.sort()
-    errs = []
-    for f in files:
-        rel = os.path.relpath(f, root)
-        try:
-            with open(f, encoding="utf-8") as fh:
-                doc = yaml.safe_load(fh)
-        except Exception as e:
-            errs.append(f"ERROR: workflows-parse: {rel}: {str(e)!s}".replace("\n", " "))
-            continue
-        if not isinstance(doc, dict):
-            errs.append(f"ERROR: workflows-parse: {rel}: not a mapping")
-    return errs, len(files)
-
-root = sys.argv[1]
-fails = 0
-errs, n = check(root)
-if n == 0:
-    print("ERROR: workflows-parse: no YAML files found under .github/workflows or actions")
-    fails += 1
-for e in errs:
-    print(e)
-    fails += 1
-
-# Planted failures: a copy of the real files plus one bad file must be rejected by name.
-plants = {
-    "planted-bad.yml": "name: x\njobs:\n  a:\n    steps:\n      - run: echo a: b\n",
-    "planted-list.yml": "- a\n- b\n",
+# lint <dir>: actionlint over a copy at <dir>, the shared actions made local.
+lint() {
+  sed -i -E 's#project-silica/\.github/(actions/[A-Za-z0-9_-]+)@[A-Za-z0-9._/-]+#./\1#' "$1"/.github/workflows/*.yml
+  (cd "$1" && actionlint -no-color)
 }
-for name, text in plants.items():
-    with tempfile.TemporaryDirectory(prefix="wfparse.") as tmp:
-        shutil.copytree(os.path.join(root, ".github"), os.path.join(tmp, ".github"))
-        if os.path.isdir(os.path.join(root, "actions")):
-            shutil.copytree(os.path.join(root, "actions"), os.path.join(tmp, "actions"))
-        with open(os.path.join(tmp, ".github", "workflows", name), "w") as fh:
-            fh.write(text)
-        perrs, _ = check(tmp)
-        named = [e for e in perrs if name in e]
-        if not named:
-            print(f"ERROR: workflows-parse: planted {name} was not rejected by name")
-            fails += 1
-if fails == 0:
-    print("WORKFLOWS-PARSE: OK")
-sys.exit(1 if fails else 0)
-PY
+# copy <dir>: the workflows, their configuration and the actions, as a repository.
+copy() {
+  mkdir -p "$1" && cp -r "$ROOT/.github" "$1/" && cp -r "$ROOT/actions" "$1/" && git -C "$1" init -q
+}
+
+ls "$ROOT"/.github/workflows/*.yml >/dev/null 2>&1 || bad "no workflows under .github/workflows"
+copy "$TMP/real"
+out=$(lint "$TMP/real") || bad "actionlint: $(head -n 1 <<<"$out")"
+for a in "$ROOT"/actions/*/; do
+  a=$(basename "$a")
+  grep -qE "uses: \\./actions/$a\$" "$TMP"/real/.github/workflows/*.yml || bad "actions/$a is used by no workflow, so nothing checks it"
+done
+
+# Planted failures, each in a fresh copy, must be rejected naming the file.
+copy "$TMP/workflow"
+printf 'name: x\njobs:\n  a:\n    steps:\n      - run: echo a: b\n' >"$TMP/workflow/.github/workflows/planted-bad.yml"
+out=$(lint "$TMP/workflow") && bad "a planted unparsable workflow was accepted"
+grep -q 'planted-bad\.yml' <<<"$out" || bad "a planted unparsable workflow was not rejected by name: $(head -n 1 <<<"$out")"
+copy "$TMP/action"
+printf 'name: x\nruns:\n  using: composite\n  steps:\n    - run: echo a: b\n' >"$TMP/action/actions/setup/action.yml"
+out=$(lint "$TMP/action") && bad "a planted broken action was accepted"
+grep -q 'actions/setup' <<<"$out" || bad "a planted broken action was not rejected by name: $(head -n 1 <<<"$out")"
+
+[ $fails = 0 ] && echo "WORKFLOWS-PARSE: OK"
+[ $fails = 0 ]

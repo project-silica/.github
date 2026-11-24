@@ -52,6 +52,17 @@ runs:
         if [ -c /dev/kvm ] && [ ! -w /dev/kvm ]; then
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
         fi
+    # The workflows' checker (tests/workflows_parse.sh), a release pinned by
+    # its checksum.
+    - shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        set -euo pipefail
+        v=1.7.12 sum=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        curl -fsSL --retry 3 -o actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/v$v/actionlint_${v}_linux_amd64.tar.gz"
+        echo "$sum  actionlint.tar.gz" | sha256sum -c --quiet
+        mkdir -p "$HOME/.local/bin" && tar -xzf actionlint.tar.gz -C "$HOME/.local/bin" actionlint
+        echo "$HOME/.local/bin" >>"$GITHUB_PATH"
     - if: inputs.repo == 'kernel' || inputs.deep == 'true' || github.event_name == 'schedule'
       shell: bash
       # The project checkout uses its offline vendor directory. The host
