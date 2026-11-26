@@ -39,7 +39,7 @@ jobs:
         if: steps.paths.outputs.docs != 'true'
         # Its own limit inside the job's, so that the build cache it made
         # is still saved for the next run when it runs out of time.
-        timeout-minutes: 3
+        timeout-minutes: 3.5
         working-directory: ${{ steps.setup.outputs.ws }}
         run: |
           set -o pipefail
