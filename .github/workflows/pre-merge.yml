@@ -37,6 +37,9 @@ jobs:
           repo: ${{ inputs.repo }}
       - name: fast tier
         if: steps.paths.outputs.docs != 'true'
+        # Its own limit inside the job's, so that the build cache it made
+        # is still saved for the next run when it runs out of time.
+        timeout-minutes: 3
         working-directory: ${{ steps.setup.outputs.ws }}
         run: |
           set -o pipefail
@@ -49,8 +52,15 @@ jobs:
         if: steps.paths.outputs.docs == 'true'
         working-directory: ${{ steps.setup.outputs.ws }}/${{ inputs.repo }}
         run: if [ -f Cargo.toml ]; then cargo fmt --all --check; fi
+      - uses: actions/cache/save@v4
+        if: always() && steps.setup.outputs.cache-key != ''
+        with:
+          path: ${{ steps.setup.outputs.ws }}/target/cache
+          key: ${{ steps.setup.outputs.cache-key }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: logs-pre-merge-${{ inputs.repo }}
-          path: ${{ steps.setup.outputs.ws }}/target/logs
+          path: |
+            ${{ steps.setup.outputs.ws }}/target/logs
+            ${{ steps.setup.outputs.ws }}/target/runs/test.*/units.tsv

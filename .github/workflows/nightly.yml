@@ -57,3 +57,8 @@ jobs:
             ${{ steps.setup.outputs.ws }}/target/runs/bench.*/*.serial
             ${{ steps.setup.outputs.ws }}/target/runs/test.*/units.tsv
             ${{ steps.setup.outputs.ws }}/target/runs/test.*/named/fast_budget/fastbudget.*/run.log
+      - uses: actions/cache/save@v4
+        if: always() && steps.setup.outputs.cache-key != ''
+        with:
+          path: ${{ steps.setup.outputs.ws }}/target/cache
+          key: ${{ steps.setup.outputs.cache-key }}

@@ -15,6 +15,9 @@ outputs:
   ws:
     description: Absolute path of the workspace root
     value: ${{ steps.ws.outputs.ws }}
+  cache-key:
+    description: The key to save the build cache (target/cache) under at the job's end
+    value: ${{ steps.cache.outputs.cache-primary-key }}
 runs:
   using: composite
   steps:
@@ -105,8 +108,17 @@ runs:
         tc=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' kernel/rust-toolchain.toml)
         rustup toolchain install "$tc" --profile minimal --component rust-src,clippy,rustfmt,miri,llvm-tools
         ./tools/init.sh
-    - uses: actions/cache@v4
+    # The build cache is restored here and saved by the calling workflow's
+    # last step whatever happened (`cache-key`), under a key of its run: a
+    # key of the lock files alone was saved once and never again, and a run
+    # that failed or ran out of time saved nothing, so every run rebuilt
+    # what had changed since (on 2026-11-26 every pre-merge job ran out of
+    # its 5 minutes building).
+    - id: cache
+      uses: actions/cache/restore@v4
       with:
         path: ${{ steps.ws.outputs.ws }}/target/cache
-        key: silica-${{ inputs.repo }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain.toml') }}
-        restore-keys: silica-${{ inputs.repo }}-${{ runner.os }}-
+        key: silica-${{ inputs.repo }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          silica-${{ inputs.repo }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain.toml') }}-
+          silica-${{ inputs.repo }}-${{ runner.os }}-
