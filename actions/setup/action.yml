@@ -55,6 +55,13 @@ runs:
         if [ -c /dev/kvm ] && [ ! -w /dev/kvm ]; then
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
         fi
+        echo "setup: $(nproc) processors, $(awk '/^MemTotal:/ { print int($2 / 1048576) }' /proc/meminfo) GiB, KVM $([ -w /dev/kvm ] && echo yes || echo no), user service manager $(systemctl --user show-environment >/dev/null 2>&1 && echo yes || echo no)"
+        # The tools put themselves in a memory cgroup of their own where
+        # there is a user service manager, capped at what a desktop can
+        # spare (lib/common.sh); a runner is a machine of its own, and
+        # system's fast tier, building and testing at once, was killed
+        # there without a word 10 s in.
+        echo "SILICA_CONTAINED=1" >>"$GITHUB_ENV"
     # The workflows' checker (tests/workflows_parse.sh), a release pinned by
     # its checksum.
     - shell: bash
