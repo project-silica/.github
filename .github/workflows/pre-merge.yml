@@ -1,4 +1,7 @@
-# Pre-merge check: 5 minutes, blocks merge.
+# Pre-merge check: 5 minutes a job, blocks merge. The fast tier runs as two
+# jobs at once (tools/test.sh with SILICA_SHARD: the guests dealt between
+# them, the rest in the first); `pre-merge` is green when both are, and is
+# the check branch protection requires.
 # Format, lint, build, host tests, size and bloat gates, dependency direction,
 # boot smoke test, all through the same tools/ scripts used locally.
 # A documentation-only change runs the format check and nothing else.
@@ -12,7 +15,12 @@ on:
 permissions:
   contents: read
 jobs:
-  pre-merge:
+  fast:
+    name: fast tier ${{ matrix.shard }}/2
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     # 26.04: its QEMU (10.2) emulates x2APIC and the TSC-deadline timer,
     # which Silica requires; 24.04's QEMU 8.2 does neither under TCG.
     runs-on: ubuntu-26.04
@@ -43,13 +51,13 @@ jobs:
           # Its own limit inside the job's 5 minutes (setup takes about 60 s,
           # saving the cache 15 s), so that a run out of time still saves the
           # cache it built. timeout-minutes counts whole minutes only.
-          timeout --kill-after=5 215 ./tools/test.sh --fast --repo '${{ inputs.repo }}' 2>&1 | tee "$RUNNER_TEMP/test.out" || { rc=$?; [ "$rc" != 124 ] || echo "::error::the fast tier ran out of its 215 s"; grep "^ERROR" "$RUNNER_TEMP/test.out" | head -30 | sed "s/^/::error::/"; exit 1; }
+          SILICA_SHARD='${{ matrix.shard }}/2' timeout --kill-after=5 215 ./tools/test.sh --fast --repo '${{ inputs.repo }}' 2>&1 | tee "$RUNNER_TEMP/test.out" || { rc=$?; [ "$rc" != 124 ] || echo "::error::the fast tier ran out of its 215 s"; grep "^ERROR" "$RUNNER_TEMP/test.out" | head -30 | sed "s/^/::error::/"; exit 1; }
       - name: dependency direction
-        if: steps.paths.outputs.docs != 'true'
+        if: steps.paths.outputs.docs != 'true' && matrix.shard == 1
         working-directory: ${{ steps.setup.outputs.ws }}
         run: ./tools/check-deps.sh
       - name: format only
-        if: steps.paths.outputs.docs == 'true'
+        if: steps.paths.outputs.docs == 'true' && matrix.shard == 1
         working-directory: ${{ steps.setup.outputs.ws }}/${{ inputs.repo }}
         run: if [ -f Cargo.toml ]; then cargo fmt --all --check; fi
       - uses: actions/cache/save@v4
@@ -60,7 +68,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: logs-pre-merge-${{ inputs.repo }}
+          name: logs-pre-merge-${{ inputs.repo }}-${{ matrix.shard }}
           path: |
             ${{ steps.setup.outputs.ws }}/target/logs
             ${{ steps.setup.outputs.ws }}/target/runs/test.*/units.tsv
+  pre-merge:
+    needs: fast
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 1
+    steps:
+      - name: both jobs of the fast tier passed
+        run: test '${{ needs.fast.result }}' = success
