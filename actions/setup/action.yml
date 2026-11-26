@@ -122,3 +122,32 @@ runs:
         restore-keys: |
           silica-${{ inputs.repo }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock', '**/rust-toolchain.toml') }}-
           silica-${{ inputs.repo }}-${{ runner.os }}-
+    # Cargo judges a build fresh by its sources' times, and a checkout's
+    # files are all as new as the checkout, so a restored cache rebuilt
+    # every crate (and core, from a toolchain installed anew). The cache
+    # keeps each tracked file's content hash and time as the build that
+    # saved it saw them: a file with the same content gets that time back,
+    # a changed one keeps the checkout's and is rebuilt. The toolchain's
+    # library sources are as old as the toolchain (its version is part of
+    # every fingerprint).
+    - shell: bash
+      working-directory: ${{ steps.ws.outputs.ws }}
+      run: |
+        set -euo pipefail
+        m=target/cache/source-times.tsv cur=$RUNNER_TEMP/source-blobs.tsv
+        mkdir -p target/cache
+        for r in . idl kernel system os; do
+          [ -e "$r/.git" ] || continue
+          git -C "$r" ls-files -s | awk -v r="$r" '{ split($0, f, "\t"); split(f[1], a, " "); print r "/" f[2] "\t" a[2] }'
+        done >"$cur"
+        same=0
+        if [ -f "$m" ]; then
+          awk -F'\t' 'NR == FNR { t[$1 "\t" $2] = $3; next } ($1 "\t" $2) in t { print t[$1 "\t" $2] "\t" $1 }' "$m" "$cur" >"$RUNNER_TEMP/same.tsv"
+          perl -MTime::HiRes=utime -F'\t' -lane 'utime($F[0], $F[0], $F[1]) if -f $F[1] && ! -l $F[1]' "$RUNNER_TEMP/same.tsv"
+          same=$(wc -l <"$RUNNER_TEMP/same.tsv")
+        fi
+        cut -f1 "$cur" | tr '\n' '\0' | xargs -0 stat -c '%.9Y' >"$RUNNER_TEMP/times"
+        paste "$cur" "$RUNNER_TEMP/times" >"$m"
+        src=$(cd kernel && rustc --print sysroot)/lib/rustlib/src
+        find "$src" -type f -exec touch -d @946684800 {} +
+        echo "setup: $same of $(wc -l <"$cur") source files have the times the cache was built with"
