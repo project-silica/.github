@@ -37,13 +37,13 @@ jobs:
           repo: ${{ inputs.repo }}
       - name: fast tier
         if: steps.paths.outputs.docs != 'true'
-        # Its own limit inside the job's, so that the build cache it made
-        # is still saved for the next run when it runs out of time.
-        timeout-minutes: 3.5
         working-directory: ${{ steps.setup.outputs.ws }}
         run: |
           set -o pipefail
-          ./tools/test.sh --fast --repo '${{ inputs.repo }}' 2>&1 | tee "$RUNNER_TEMP/test.out" || { grep "^ERROR" "$RUNNER_TEMP/test.out" | head -30 | sed "s/^/::error::/"; exit 1; }
+          # Its own limit inside the job's 5 minutes (setup takes about 60 s,
+          # saving the cache 15 s), so that a run out of time still saves the
+          # cache it built. timeout-minutes counts whole minutes only.
+          timeout --kill-after=5 215 ./tools/test.sh --fast --repo '${{ inputs.repo }}' 2>&1 | tee "$RUNNER_TEMP/test.out" || { rc=$?; [ "$rc" != 124 ] || echo "::error::the fast tier ran out of its 215 s"; grep "^ERROR" "$RUNNER_TEMP/test.out" | head -30 | sed "s/^/::error::/"; exit 1; }
       - name: dependency direction
         if: steps.paths.outputs.docs != 'true'
         working-directory: ${{ steps.setup.outputs.ws }}
