@@ -43,6 +43,10 @@ runs:
         a="$RUNNER_TEMP/apt-archives"
         mkdir -p "$a/partial"
         net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+        # Only Ubuntu's archive, which holds every package below: the
+        # runner image's other sources (Microsoft's, 2026-11-27: 403 and
+        # "no longer signed") failed the update, and with it the run.
+        sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu*' -delete
         # The index every time (skipping it, 2026-11-23, made a stale one
         # fetch from mirrors for 205 s), the packages from the cache where
         # they are kept: each phase says how long it took.
